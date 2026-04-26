@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}审核管理 - 企业知识库{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-left">
+        <h1><i class="fas fa-clipboard-check"></i> 审核管理</h1>
+        <p class="subtitle">审核待发布的知识文档</p>
+    </div>
+</div>
+
+<div class="review-tabs">
+    <button class="tab-btn active" onclick="loadReviewList('all')">全部待审 <span id="count-all">0</span></button>
+    <button class="tab-btn" onclick="loadReviewList('reviewing')">待人工审核 <span id="count-reviewing">0</span></button>
+    <button class="tab-btn" onclick="loadReviewList('ai_rejected')">AI校验未通过 <span id="count-ai">0</span></button>
+</div>
+
+<div class="review-list" id="review-list">
+    <div class="empty-state">
+        <i class="fas fa-clipboard-check"></i>
+        <h3>暂无待审核文档</h3>
+    </div>
+</div>
+
+<!-- 审核详情模态框 -->
+<div class="modal-overlay" id="review-modal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h2 id="review-modal-title">审核文档</h2>
+            <button class="modal-close" onclick="closeReviewModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="review-modal-body"></div>
+        <div class="modal-footer" id="review-modal-footer"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentReviewFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', () => loadReviewList('all'));
+
+    async function loadReviewList(filter) {
+        currentReviewFilter = filter;
+        try {
+            const resp = await fetch('/api/review/list');
+            const data = await resp.json();
+            let docs = data.documents;
+
+            if (filter === 'reviewing') docs = docs.filter(d => d.status === 'reviewing');
+            if (filter === 'ai_rejected') docs = docs.filter(d => d.status === 'ai_rejected');
+
+            // 更新计数
+            const allDocs = data.documents;
+            document.getElementById('count-all').textContent = allDocs.length;
+            document.getElementById('count-reviewing').textContent = allDocs.filter(d => d.status === 'reviewing').length;
+            document.getElementById('count-ai').textContent = allDocs.filter(d => d.status === 'ai_rejected').length;
+
+            const list = document.getElementById('review-list');
+            if (docs.length === 0) {
+                list.innerHTML = '<div class="empty-state"><i class="fas fa-clipboard-check"></i><h3>暂无待审核文档</h3></div>';
+                return;
+            }
+
+            list.innerHTML = docs.map(doc => {
+                const statusMap = {reviewing: '待人工审核', ai_rejected: 'AI校验未通过'};
+                const statusClass = doc.status === 'ai_rejected' ? 'status-danger' : 'status-warning';
+                const author = doc.author_display_name || doc.author_name || '未知';
+                return `
+                <div class="review-card" onclick="openReviewDetail(${doc.id})">
+                    <div class="review-card-header">
+                        <h3>${escapeHtml(doc.title)}</h3>
+                        <span class="status-badge ${statusClass}">${statusMap[doc.status] || doc.status}</span>
+                    </div>
+                    <div class="review-card-meta">
+                        <span><i class="fas fa-user"></i> ${escapeHtml(author)}</span>
+                        <span><i class="fas fa-folder"></i> ${escapeHtml(doc.category)}</span>
+                        <span><i class="fas fa-clock"></i> ${formatTime(doc.updated_at)}</span>
+                    </div>
+                    ${doc.ai_review ? `<div class="review-ai-result">${doc.ai_review_passed ? '✅' : '❌'} AI校验结果</div>` : ''}
+                </div>`;
+            }).join('');
+        } catch(e) {}
+    }
+
+    async function openReviewDetail(docId) {
+        try {
+            const resp = await fetch(`/api/documents/${docId}`);
+            const doc = await resp.json();
+
+            const author = doc.author_display_name || doc.author_name || '未知';
+            const isAiRejected = doc.status === 'ai_rejected';
+
+            document.getElementById('review-modal-title').textContent = `审核：${doc.title}`;
+            document.getElementById('review-modal-body').innerHTML = `
+                <div class="review-info-grid">
+                    <div><strong>提交者：</strong>${escapeHtml(author)}</div>
+                    <div><strong>分类：</strong>${escapeHtml(doc.category)}</div>
+                    <div><strong>标签：</strong>${escapeHtml(doc.tags) || '无'}</div>
+                    <div><strong>提交时间：</strong>${doc.created_at}</div>
+                </div>
+
+                ${doc.ai_review ? `
+                <div class="ai-review-box ${isAiRejected ? 'ai-review-fail' : 'ai-review-pass'}">
+                    <h4><i class="fas fa-robot"></i> AI 校验结果</h4>
+                    <div class="ai-review-content">${renderMarkdown(doc.ai_review)}</div>
+                </div>` : ''}
+
+                <div class="review-section">
+                    <h4><i class="fas fa-question-circle"></i> 问题描述</h4>
+                    <div class="review-content-box">${renderMarkdown(doc.content)}</div>
+                </div>
+                <div class="review-section">
+                    <h4><i class="fas fa-lightbulb"></i> 解决方案</h4>
+                    <div class="review-content-box">${renderMarkdown(doc.solution)}</div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-edit"></i> 管理员可编辑修正后发布</label>
+                    <input type="text" id="review-edit-title" value="${escapeHtml(doc.title)}" class="form-input" placeholder="标题">
+                </div>
+                <div class="form-group">
+                    <textarea id="review-edit-content" class="form-input form-textarea" rows="4" placeholder="问题描述">${escapeHtml(doc.content)}</textarea>
+                </div>
+                <div class="form-group">
+                    <textarea id="review-edit-solution" class="form-input form-textarea" rows="4" placeholder="解决方案">${escapeHtml(doc.solution)}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>审核备注</label>
+                    <input type="text" id="review-note" class="form-input" placeholder="填写审核意见（可选）">
+                </div>
+            `;
+
+            document.getElementById('review-modal-footer').innerHTML = `
+                <button class="btn btn-outline" onclick="closeReviewModal()">取消</button>
+                <button class="btn btn-danger" onclick="rejectDoc(${doc.id})">
+                    <i class="fas fa-times"></i> 驳回
+                </button>
+                <button class="btn btn-primary" onclick="approveDoc(${doc.id})">
+                    <i class="fas fa-check"></i> 审核通过并发布
+                </button>
+            `;
+
+            document.getElementById('review-modal').classList.add('active');
+        } catch(e) {}
+    }
+
+    async function approveDoc(docId) {
+        try {
+            const resp = await fetch(`/api/review/${docId}/approve`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    title: document.getElementById('review-edit-title').value,
+                    content: document.getElementById('review-edit-content').value,
+                    solution: document.getElementById('review-edit-solution').value,
+                    note: document.getElementById('review-note').value || '审核通过'
+                })
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                showToast('文档已发布', 'success');
+                closeReviewModal();
+                loadReviewList(currentReviewFilter);
+            } else {
+                showToast(data.error, 'error');
+            }
+        } catch(e) {}
+    }
+
+    async function rejectDoc(docId) {
+        const note = document.getElementById('review-note').value.trim();
+        if (!note) {
+            showToast('请填写驳回原因', 'error');
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/review/${docId}/reject`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({note})
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                showToast('文档已驳回', 'success');
+                closeReviewModal();
+                loadReviewList(currentReviewFilter);
+            } else {
+                showToast(data.error, 'error');
+            }
+        } catch(e) {}
+    }
+
+    function closeReviewModal() {
+        document.getElementById('review-modal').classList.remove('active');
+    }
+</script>
+{% endblock %}

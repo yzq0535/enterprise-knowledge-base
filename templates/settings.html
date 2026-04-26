@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - 个人知识库{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-left">
+        <h1><i class="fas fa-cog"></i> 系统设置</h1>
+        <p class="subtitle">配置AI接口和系统参数</p>
+    </div>
+</div>
+
+<div class="settings-container">
+    <!-- AI 配置 -->
+    <div class="settings-card">
+        <div class="settings-card-header">
+            <h3><i class="fas fa-robot"></i> AI 接口配置</h3>
+            <span class="badge" id="ai-status-badge">未配置</span>
+        </div>
+        <div class="settings-card-body">
+            <div class="form-group">
+                <label>API 类型</label>
+                <select id="api-type" class="form-input" onchange="onApiTypeChange()">
+                    <option value="openai">OpenAI (GPT)</option>
+                    <option value="custom">自定义接口</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API Key <span class="required">*</span></label>
+                <div class="input-with-icon">
+                    <input type="password" id="api-key" placeholder="输入你的 API Key" class="form-input">
+                    <button class="input-icon-btn" onclick="togglePasswordVisibility('api-key')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <p class="form-hint">支持 OpenAI、DeepSeek、通义千问等兼容 OpenAI 格式的 API</p>
+            </div>
+            <div class="form-group" id="base-url-group" style="display:none">
+                <label>自定义 API 地址</label>
+                <input type="text" id="base-url" placeholder="https://api.deepseek.com" class="form-input">
+                <p class="form-hint">填写自定义 API 的基础地址（不含 /v1/chat/completions）</p>
+            </div>
+            <div class="form-group">
+                <label>模型名称</label>
+                <input type="text" id="model-name" placeholder="gpt-3.5-turbo" class="form-input" value="gpt-3.5-turbo">
+                <p class="form-hint">常用模型：gpt-3.5-turbo, gpt-4, deepseek-chat, qwen-turbo</p>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-outline" onclick="testConnection()">
+                    <i class="fas fa-plug"></i> 测试连接
+                </button>
+                <button class="btn btn-primary" onclick="saveSettings()">
+                    <i class="fas fa-save"></i> 保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据管理 -->
+    <div class="settings-card">
+        <div class="settings-card-header">
+            <h3><i class="fas fa-database"></i> 数据管理</h3>
+        </div>
+        <div class="settings-card-body">
+            <div class="data-actions">
+                <div class="data-action-item">
+                    <div class="data-action-info">
+                        <h4>导出数据</h4>
+                        <p>将所有知识文档导出为 JSON 文件备份</p>
+                    </div>
+                    <button class="btn btn-outline" onclick="exportData()">
+                        <i class="fas fa-download"></i> 导出
+                    </button>
+                </div>
+                <div class="data-action-item">
+                    <div class="data-action-info">
+                        <h4>导入数据</h4>
+                        <p>从 JSON 文件导入知识文档</p>
+                    </div>
+                    <label class="btn btn-outline" style="margin:0">
+                        <i class="fas fa-upload"></i> 导入
+                        <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+                    </label>
+                </div>
+                <div class="data-action-item danger">
+                    <div class="data-action-info">
+                        <h4>清空问答历史</h4>
+                        <p>删除所有问答历史记录</p>
+                    </div>
+                    <button class="btn btn-danger" onclick="clearHistory()">
+                        <i class="fas fa-trash"></i> 清空
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 关于 -->
+    <div class="settings-card">
+        <div class="settings-card-header">
+            <h3><i class="fas fa-info-circle"></i> 关于</h3>
+        </div>
+        <div class="settings-card-body">
+            <div class="about-info">
+                <p><strong>个人知识库</strong> v1.0.0</p>
+                <p>一个轻量级的运维知识管理工具，支持知识文档管理和智能问答。</p>
+                <ul>
+                    <li>📝 知识文档的增删改查</li>
+                    <li>🔍 关键词全文搜索</li>
+                    <li>🤖 AI 智能问答（需配置 API）</li>
+                    <li>📂 分类和标签管理</li>
+                    <li>💾 数据导入导出</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/settings.js"></script>
+{% endblock %}

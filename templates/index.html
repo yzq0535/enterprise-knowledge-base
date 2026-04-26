@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}知识文档 - 个人知识库{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-left">
+        <h1><i class="fas fa-folder-open"></i> 知识文档</h1>
+        <p class="subtitle">管理和整理运维知识文档</p>
+    </div>
+    <div class="header-right">
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            <i class="fas fa-plus"></i> 新建文档
+        </button>
+        <button class="btn btn-outline" onclick="exportData()">
+            <i class="fas fa-download"></i> 导出
+        </button>
+        <label class="btn btn-outline" style="margin:0">
+            <i class="fas fa-upload"></i> 导入
+            <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+        </label>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#eff6ff;color:#3b82f6"><i class="fas fa-file-alt"></i></div>
+        <div class="stat-info">
+            <div class="stat-value" id="total-docs">0</div>
+            <div class="stat-label">知识文档</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#f0fdf4;color:#22c55e"><i class="fas fa-tags"></i></div>
+        <div class="stat-info">
+            <div class="stat-value" id="total-categories">0</div>
+            <div class="stat-label">分类数量</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#fef3c7;color:#f59e0b"><i class="fas fa-comments"></i></div>
+        <div class="stat-info">
+            <div class="stat-value" id="total-qa">0</div>
+            <div class="stat-label">问答次数</div>
+        </div>
+    </div>
+</div>
+
+<!-- 搜索和筛选 -->
+<div class="filter-bar">
+    <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="search-input" placeholder="搜索文档标题、内容、标签..." oninput="debounceSearch()">
+        <button class="search-clear" onclick="clearSearch()" id="search-clear" style="display:none">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="filter-select">
+        <select id="category-filter" onchange="loadDocuments()">
+            <option value="">全部分类</option>
+        </select>
+    </div>
+</div>
+
+<!-- 文档列表 -->
+<div class="doc-list" id="doc-list">
+    <div class="empty-state" id="empty-state">
+        <i class="fas fa-book-open"></i>
+        <h3>暂无知识文档</h3>
+        <p>点击「新建文档」开始记录运维知识</p>
+    </div>
+</div>
+
+<!-- 分页 -->
+<div class="pagination" id="pagination" style="display:none"></div>
+
+<!-- 文档编辑模态框 -->
+<div class="modal-overlay" id="doc-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="modal-title">新建文档</h2>
+            <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="doc-id">
+            <div class="form-group">
+                <label>标题 <span class="required">*</span></label>
+                <input type="text" id="doc-title" placeholder="输入文档标题" class="form-input">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>分类</label>
+                    <select id="doc-category" class="form-input">
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>标签</label>
+                    <input type="text" id="doc-tags" placeholder="用逗号分隔多个标签" class="form-input">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>问题描述</label>
+                <textarea id="doc-content" rows="6" placeholder="详细描述遇到的问题..." class="form-input form-textarea"></textarea>
+            </div>
+            <div class="form-group">
+                <label>解决方案</label>
+                <textarea id="doc-solution" rows="6" placeholder="记录解决方案和操作步骤..." class="form-input form-textarea"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveDocument()">
+                <i class="fas fa-save"></i> 保存
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 文档详情模态框 -->
+<div class="modal-overlay" id="detail-modal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h2 id="detail-title"></h2>
+            <button class="modal-close" onclick="closeDetailModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="detail-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeDetailModal()">关闭</button>
+            <button class="btn btn-primary" id="detail-edit-btn">
+                <i class="fas fa-edit"></i> 编辑
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal-overlay" id="delete-modal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h2>确认删除</h2>
+            <button class="modal-close" onclick="closeDeleteModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p>确定要删除文档「<strong id="delete-doc-title"></strong>」吗？此操作不可撤销。</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeDeleteModal()">取消</button>
+            <button class="btn btn-danger" id="confirm-delete-btn">
+                <i class="fas fa-trash"></i> 删除
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/documents.js"></script>
+{% endblock %}

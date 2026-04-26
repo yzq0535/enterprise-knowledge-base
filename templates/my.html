@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}我的文档 - 企业知识库{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-left">
+        <h1><i class="fas fa-file-alt"></i> 我的文档</h1>
+        <p class="subtitle">查看和管理我提交的知识文档</p>
+    </div>
+    <div class="header-right">
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            <i class="fas fa-plus"></i> 新建文档
+        </button>
+    </div>
+</div>
+
+<div class="my-tabs">
+    <button class="tab-btn active" onclick="loadMyDocs('all')">全部</button>
+    <button class="tab-btn" onclick="loadMyDocs('ai_checking')">AI校验中</button>
+    <button class="tab-btn" onclick="loadMyDocs('reviewing')">待审核</button>
+    <button class="tab-btn" onclick="loadMyDocs('published')">已发布</button>
+    <button class="tab-btn" onclick="loadMyDocs('rejected')">已驳回</button>
+</div>
+
+<div class="doc-list" id="my-doc-list"></div>
+
+<!-- 新建/编辑模态框 -->
+<div class="modal-overlay" id="doc-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="modal-title">新建文档</h2>
+            <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="doc-id">
+            <div class="form-group">
+                <label>标题 <span class="required">*</span></label>
+                <input type="text" id="doc-title" placeholder="输入文档标题" class="form-input">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>分类</label>
+                    <select id="doc-category" class="form-input"></select>
+                </div>
+                <div class="form-group">
+                    <label>标签</label>
+                    <input type="text" id="doc-tags" placeholder="逗号分隔" class="form-input">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>问题描述</label>
+                <textarea id="doc-content" rows="5" placeholder="描述遇到的问题..." class="form-input form-textarea"></textarea>
+            </div>
+            <div class="form-group">
+                <label>解决方案</label>
+                <textarea id="doc-solution" rows="5" placeholder="记录解决方案..." class="form-input form-textarea"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveDocument()"><i class="fas fa-save"></i> 提交</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCategories();
+        loadMyDocs('all');
+    });
+
+    async function loadCategories() {
+        try {
+            const cats = await api('/api/categories');
+            const sel = document.getElementById('doc-category');
+            sel.innerHTML = cats.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        } catch(e) {}
+    }
+
+    async function loadMyDocs(filter) {
+        currentFilter = filter;
+        try {
+            const params = new URLSearchParams({author_id: 'self', per_page: 50});
+            if (filter !== 'all') params.set('status', filter);
+            const data = await api(`/api/documents?${params}`);
+
+            const list = document.getElementById('my-doc-list');
+            if (data.documents.length === 0) {
+                list.innerHTML = '<div class="empty-state"><i class="fas fa-file-alt"></i><h3>暂无文档</h3></div>';
+                return;
+            }
+
+            const statusMap = {
+                ai_checking: ['AI校验中', 'status-info'],
+                reviewing: ['待审核', 'status-warning'],
+                ai_rejected: ['AI未通过', 'status-danger'],
+                published: ['已发布', 'status-success'],
+                rejected: ['已驳回', 'status-danger']
+            };
+
+            list.innerHTML = data.documents.map(doc => {
+                const [statusText, statusClass] = statusMap[doc.status] || [doc.status, ''];
+                return `
+                <div class="doc-item">
+                    <div class="doc-info" onclick="viewDoc(${doc.id})">
+                        <div class="doc-title">${escapeHtml(doc.title)}</div>
+                        <div class="doc-summary">${escapeHtml((doc.solution || doc.content || '').substring(0, 120))}</div>
+                        <div class="doc-meta">
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                            <span><i class="fas fa-clock"></i> ${formatTime(doc.updated_at)}</span>
+                            ${doc.ai_review && !doc.ai_review_passed ? '<span style="color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> AI校验未通过</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="doc-actions" style="opacity:1">
+                        ${doc.status === 'rejected' || doc.status === 'ai_rejected' ? `<button class="btn btn-sm btn-outline" onclick="resubmitDoc(${doc.id})"><i class="fas fa-redo"></i> 重新提交</button>` : ''}
+                        ${doc.status === 'ai_checking' || doc.status === 'reviewing' ? '<span style="color:var(--text-muted);font-size:12px">处理中...</span>' : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        } catch(e) {}
+    }
+
+    function openCreateModal() {
+        document.getElementById('modal-title').textContent = '新建文档';
+        document.getElementById('doc-id').value = '';
+        document.getElementById('doc-title').value = '';
+        document.getElementById('doc-tags').value = '';
+        document.getElementById('doc-content').value = '';
+        document.getElementById('doc-solution').value = '';
+        document.getElementById('doc-modal').classList.add('active');
+    }
+
+    async function saveDocument() {
+        const title = document.getElementById('doc-title').value.trim();
+        if (!title) { showToast('请输入标题', 'error'); return; }
+
+        const data = {
+            title, category: document.getElementById('doc-category').value,
+            tags: document.getElementById('doc-tags').value,
+            content: document.getElementById('doc-content').value,
+            solution: document.getElementById('doc-solution').value
+        };
+
+        try {
+            const resp = await fetch('/api/documents', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+            });
+            const result = await resp.json();
+            if (resp.ok) {
+                closeModal();
+                showToast(result.message, 'success');
+                loadMyDocs(currentFilter);
+                if (result.ai_review && !result.ai_review.passed) {
+                    setTimeout(() => alert('⚠️ AI校验未通过，请查看通知了解详情。'), 500);
+                }
+            } else {
+                showToast(result.error, 'error');
+            }
+        } catch(e) {}
+    }
+
+    async function resubmitDoc(docId) {
+        try {
+            const doc = await api(`/api/documents/${docId}`);
+            document.getElementById('modal-title').textContent = '修改并重新提交';
+            document.getElementById('doc-id').value = docId;
+            document.getElementById('doc-title').value = doc.title;
+            document.getElementById('doc-tags').value = doc.tags;
+            document.getElementById('doc-content').value = doc.content;
+            document.getElementById('doc-solution').value = doc.solution;
+            document.getElementById('doc-category').value = doc.category;
+            document.getElementById('doc-modal').classList.add('active');
+
+            // 修改保存按钮行为
+            document.querySelector('#doc-modal .modal-footer .btn-primary').onclick = async () => {
+                const data = {
+                    title: document.getElementById('doc-title').value.trim(),
+                    category: document.getElementById('doc-category').value,
+                    tags: document.getElementById('doc-tags').value,
+                    content: document.getElementById('doc-content').value,
+                    solution: document.getElementById('doc-solution').value
+                };
+                try {
+                    const resp = await fetch(`/api/documents/${docId}/resubmit`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+                    });
+                    const result = await resp.json();
+                    if (resp.ok) {
+                        closeModal();
+                        showToast(result.message, 'success');
+                        loadMyDocs(currentFilter);
+                    } else {
+                        showToast(result.error, 'error');
+                    }
+                } catch(e) {}
+            };
+        } catch(e) {}
+    }
+
+    async function viewDoc(docId) {
+        try {
+            const doc = await api(`/api/documents/${docId}`);
+            alert(`【${doc.title}】\n\n问题描述：\n${doc.content}\n\n解决方案：\n${doc.solution}\n\nAI校验：\n${doc.ai_review || '无'}\n\n审核备注：\n${doc.review_note || '无'}`);
+        } catch(e) {}
+    }
+
+    function closeModal() {
+        document.getElementById('doc-modal').classList.remove('active');
+    }
+</script>
+{% endblock %}

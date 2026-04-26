@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}知识问答 - 个人知识库{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-left">
+        <h1><i class="fas fa-comments"></i> 知识问答</h1>
+        <p class="subtitle">基于知识库的智能问答系统</p>
+    </div>
+    <div class="header-right">
+        <div class="search-type-toggle">
+            <button class="toggle-btn active" data-type="both" onclick="setSearchType('both')">
+                <i class="fas fa-magic"></i> 智能问答
+            </button>
+            <button class="toggle-btn" data-type="keyword" onclick="setSearchType('keyword')">
+                <i class="fas fa-search"></i> 关键词搜索
+            </button>
+            <button class="toggle-btn" data-type="ai" onclick="setSearchType('ai')">
+                <i class="fas fa-robot"></i> AI 问答
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 问答区域 -->
+<div class="qa-container">
+    <!-- 聊天消息区 -->
+    <div class="chat-messages" id="chat-messages">
+        <div class="welcome-message">
+            <div class="welcome-icon"><i class="fas fa-robot"></i></div>
+            <h2>你好！我是运维知识助手</h2>
+            <p>你可以向我提问运维相关的问题，我会从知识库中搜索相关文档并给出回答。</p>
+            <div class="quick-questions">
+                <button class="quick-btn" onclick="askQuick('Nginx 502 错误怎么排查？')">Nginx 502 错误怎么排查？</button>
+                <button class="quick-btn" onclick="askQuick('MySQL 慢查询如何优化？')">MySQL 慢查询如何优化？</button>
+                <button class="quick-btn" onclick="askQuick('Linux 磁盘空间满了怎么办？')">Linux 磁盘空间满了怎么办？</button>
+                <button class="quick-btn" onclick="askQuick('Docker 容器无法启动怎么处理？')">Docker 容器无法启动怎么处理？</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="chat-input-area">
+        <div class="chat-input-wrapper">
+            <textarea id="qa-input" placeholder="输入你的问题..." rows="1"
+                      onkeydown="handleInputKeydown(event)" oninput="autoResize(this)"></textarea>
+            <button class="send-btn" id="send-btn" onclick="sendQuestion()">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+        <div class="input-hint">
+            按 Enter 发送，Shift+Enter 换行
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/qa.js"></script>
+{% endblock %}
