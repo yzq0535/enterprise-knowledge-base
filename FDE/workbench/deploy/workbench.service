@@ -1,0 +1,27 @@
+# 工作台账 · systemd 服务
+# 放置位置：/etc/systemd/system/workbench.service
+# 启用：systemctl daemon-reload && systemctl enable --now workbench
+
+[Unit]
+Description=Workbench H5 (daily ledger)
+After=network.target
+
+[Service]
+Type=simple
+User=workbench
+Group=workbench
+WorkingDirectory=/opt/workbench
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DATA_DIR=/var/lib/workbench
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+# 首次启动密码：写入下面一行可覆盖默认 123456（仅首次建库生效）
+# Environment=INIT_PASSWORD=ChangeMe123
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
