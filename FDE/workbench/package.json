@@ -1,0 +1,19 @@
+{
+  "name": "workbench",
+  "version": "1.0.0",
+  "private": true,
+  "description": "日常工作台：清洁打卡、图书出入库、借阅管理、周报长图",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "sharp": "^0.34.4"
+  }
+}
